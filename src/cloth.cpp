@@ -152,7 +152,11 @@ void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParame
     }
 
     // TODO (Part 4): Handle self-collisions.
-
+    build_spatial_map();
+    for (int i = 0; i < this->point_masses.size(); i++) {
+      PointMass* curr = &(this->point_masses[i]);
+      self_collide(*curr, simulation_steps);
+    }
 
     // TODO (Part 3): Handle collisions with other primitives.
     for (int i = 0; i < this->point_masses.size(); i++) {
@@ -200,18 +204,77 @@ void Cloth::build_spatial_map() {
   map.clear();
 
   // TODO (Part 4): Build a spatial map out of all of the point masses.
+  for (int i = 0; i < this->point_masses.size(); i++) {
+    PointMass* curr = &(this->point_masses[i]);
+    float box = hash_position(curr->position);
+    vector<PointMass*>* masses;
+    if (this->map.count(box) == 0) {
+      masses = new vector<PointMass*>;
+      masses->push_back(curr);
+      this->map[box] = masses;
+    } else {
+      masses = this->map[box];
+      masses->push_back(curr);
+    }
+    this->map[box] = masses;
+  }
 
 }
 
 void Cloth::self_collide(PointMass &pm, double simulation_steps) {
   // TODO (Part 4): Handle self-collision for a given point mass.
+  float box = hash_position(pm.position);
+  vector<PointMass*>* masses = this->map[box];
+  Vector3D correction = Vector3D();
+  int total = 0;
+  for (int i = 0; i < masses->size(); i++) {
+    PointMass* curr = (*masses)[i];
+    if (&(*curr) == &pm) {
+      // Same point mass
+      continue;
+    }
+    double dist = (pm.position - curr->position).norm();
+    if (dist < 2.0 * this->thickness) {
+      correction += (pm.position - curr->position).unit() * (2.0 * this->thickness - dist);
+      total += 1;
+    }
+  }
 
+  if (total != 0) {
+      correction = (correction / ((double)total)) / simulation_steps;
+  }
+  pm.position = pm.position + correction;
+  
+}
+
+#include <cstdint>
+#include <functional>
+// Got this from ChatGPT
+float compute_unique_float(int x, int y, int z) {
+    // Concatenate the integers into a single value
+    uint64_t concatenated_value = (static_cast<uint64_t>(x) << 42) | (static_cast<uint64_t>(y) << 21) | static_cast<uint64_t>(z);
+
+    // Use a hash function to generate a unique float from the concatenated value
+    std::hash<uint64_t> hasher;
+    size_t hash_value = hasher(concatenated_value);
+
+    // Convert the hash value to a float
+    float unique_float = static_cast<float>(hash_value);
+
+    return unique_float;
 }
 
 float Cloth::hash_position(Vector3D pos) {
   // TODO (Part 4): Hash a 3D position into a unique float identifier that represents membership in some 3D box volume.
+  double box_width = 3.0 * width / (double)num_width_points;
+  double box_height = 3.0 * height / (double)num_height_points;
+  double box_t = max(box_width, box_height);
+  int x_hash = floor(pos.x / box_width);
+  int y_hash = floor(pos.y / box_height);
+  int z_hash = floor(pos.z / box_t);
 
-  return 0.f; 
+  float res = x_hash + y_hash + z_hash;
+  return res; 
 }
 
 ///////////////////////////////////////////////////////
