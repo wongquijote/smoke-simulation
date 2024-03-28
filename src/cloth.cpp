@@ -247,23 +247,6 @@ void Cloth::self_collide(PointMass &pm, double simulation_steps) {
   
 }
 
-#include <cstdint>
-#include <functional>
-// Got this from ChatGPT
-float compute_unique_float(int x, int y, int z) {
-    // Concatenate the integers into a single value
-    uint64_t concatenated_value = (static_cast<uint64_t>(x) << 42) | (static_cast<uint64_t>(y) << 21) | static_cast<uint64_t>(z);
-
-    // Use a hash function to generate a unique float from the concatenated value
-    std::hash<uint64_t> hasher;
-    size_t hash_value = hasher(concatenated_value);
-
-    // Convert the hash value to a float
-    float unique_float = static_cast<float>(hash_value);
-
-    return unique_float;
-}
-
 float Cloth::hash_position(Vector3D pos) {
   // TODO (Part 4): Hash a 3D position into a unique float identifier that represents membership in some 3D box volume.
   double box_width = 3.0 * width / (double)num_width_points;
