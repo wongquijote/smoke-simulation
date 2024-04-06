@@ -151,7 +151,7 @@ void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParame
         curr->position = new_pos;
     }
 
-    // TODO (Part 4): Handle self-collisions.
+    //// TODO (Part 4): Handle self-collisions.
     build_spatial_map();
     for (int i = 0; i < this->point_masses.size(); i++) {
       PointMass* curr = &(this->point_masses[i]);

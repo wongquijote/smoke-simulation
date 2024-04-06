@@ -44,8 +44,8 @@ void main() {
   
   vec3 intensity = u_light_intensity / dot(l, l);
   vec3 diffuse = (1.0) * intensity * max(0.0, dot(n, l / length(l)));
-  vec3 ambient = (0.1) * vec3(1.0, 1.0, 1.0);
-  vec3 specular = (1.0) * intensity * pow(max(0.0, dot(n, h)), 30.0);
+  vec3 ambient = (0.15) * vec3(1.0, 1.0, 1.0);
+  vec3 specular = (0.5) * intensity * pow(max(0.0, dot(n, h)), 30.0);
   out_color = vec4(ambient, 0.0) + vec4(diffuse, 0.0) + vec4(specular, 0.0);
   out_color.a = 1;
 }

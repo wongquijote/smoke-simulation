@@ -12,16 +12,22 @@ using namespace CGL;
 
 void Plane::collide(PointMass &pm) {
   // TODO (Part 3): Handle collisions with planes.
-  double before = dot((pm.last_position - this->point).unit(), this->normal);
-  double after = dot((pm.position - this->point).unit(), this->normal);
-  if ((before < 0.0 && after > 0.0) || (before > 0.0 && after < 0.0)) {
+  double before = dot((pm.last_position - this->point).unit(), this->normal.unit());
+  double after = dot((pm.position - this->point).unit(), this->normal.unit());
+  if ((before < 0.0 && after >= 0.0) || (before >= 0.0 && after < 0.0)) {
     // Mass crosses plane
-    double t = dot((this->point - pm.position), this->normal) / this->normal.norm2();
-    Vector3D tangent_pt = pm.position + t * this->normal;
+    double t = dot((this->point - pm.position), this->normal.unit());
+    if (after < 0.0) {
+        t = t / this->normal.norm2();
+    }
+    else {
+        t = t / ((-1.0) * this->normal.norm2());
+    }
+    Vector3D tangent_pt = pm.position + t * this->normal.unit();
     if (before < 0.0) {
-      tangent_pt += (-1.0) * SURFACE_OFFSET * this->normal;
+      tangent_pt += (-1.0) * SURFACE_OFFSET * this->normal.unit();
     } else {
-      tangent_pt += SURFACE_OFFSET * this->normal;
+      tangent_pt += SURFACE_OFFSET * this->normal.unit();
     }
     Vector3D correction = tangent_pt - pm.last_position;
     pm.position = correction * (1.0 - this->friction) + pm.last_position;
