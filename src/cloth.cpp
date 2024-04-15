@@ -9,12 +9,14 @@
 
 using namespace std;
 
-Cloth::Cloth(double width, double height, int num_width_points,
-             int num_height_points, float thickness) {
+Cloth::Cloth(double width, double height, double depth, int num_width_points,
+             int num_height_points, int num_depth_points, float thickness) {
   this->width = width;
   this->height = height;
+  this->depth = depth;
   this->num_width_points = num_width_points;
   this->num_height_points = num_height_points;
+  this->num_depth_points = num_depth_points;
   this->thickness = thickness;
 
   buildGrid();
@@ -30,10 +32,11 @@ Cloth::~Cloth() {
   }
 }
 
-// Adds a spring btw point mass at (x0, y0) and mass1 if the x0 and y0 coordinates are in bounds
-void add_spring(int x0, int y0, PointMass* mass1, Cloth* mesh, e_spring_type spring_type) {
-    if ((x0 >= 0) && (x0 < mesh->num_width_points) && (y0 >= 0) && (y0 < mesh->num_height_points)) {
-        PointMass* mass0 = &(mesh->point_masses[x0 + y0 * mesh->num_width_points]);
+// Adds a spring btw point mass at (x0, y0, z0) and mass1 if the x0 and y0 coordinates are in bounds
+void add_spring(int x0, int y0, int z0, PointMass* mass1, Cloth* mesh, e_spring_type spring_type) {
+    if ((x0 >= 0) && (x0 < mesh->num_width_points) && (y0 >= 0) && (y0 < mesh->num_height_points)
+    && (z0 >= 0) && (z0 < mesh->num_depth_points)) {
+        PointMass* mass0 = &(mesh->point_masses[x0 + y0 * mesh->num_width_points + z0 * (mesh->num_width_points * mesh->num_height_points)]);
         Spring* spring = new Spring(mass0, mass1, spring_type);
         mesh->springs.push_back(*spring);
     }
@@ -41,34 +44,32 @@ void add_spring(int x0, int y0, PointMass* mass1, Cloth* mesh, e_spring_type spr
 
 void Cloth::buildGrid() {
   // TODO (Part 1): Build a grid of masses and springs.
-    for (int j = 0; j < num_height_points; j++) {
-        for (int i = 0; i < num_width_points; i++) {
-            double x = width * ((double)i / (double)num_width_points);
-            double y = height * ((double)j / (double)num_height_points);
-            double z = 1;
-            if (this->orientation == HORIZONTAL) {
-                z = y;
-                y = 1;
-            } else {
-                z = ((double)rand() / (double)RAND_MAX) * (1.0/1000.0 - (-1.0/1000.0)) - (1.0/1000.0);
-            }
-            Vector3D pos = Vector3D(x, y, z);
-            PointMass* mass = new PointMass(pos, false);
-            this->point_masses.push_back(*mass);
-        }
+    for (int k = 0; k < num_depth_points; k++) {
+      for (int j = 0; j < num_height_points; j++) {
+          for (int i = 0; i < num_width_points; i++) {
+              double x = width * ((double)i / (double)num_width_points);
+              double y = height * ((double)j / (double)num_height_points);
+              double z = depth * ((double)k / (double)num_depth_points);
+              Vector3D pos = Vector3D(x, y, z);
+              PointMass* mass = new PointMass(pos, false);
+              this->point_masses.push_back(*mass);
+          }
+      }
     }
 
-    // Check if pinned
-    for (int i = 0; i < pinned.size(); i++) {
-        int index = pinned[i][0] + num_width_points * pinned[i][1];
-        this->point_masses[index].pinned = true;
-    }
+    //// Check if pinned
+    //for (int i = 0; i < pinned.size(); i++) {
+    //    int index = pinned[i][0] + num_width_points * pinned[i][1];
+    //    this->point_masses[index].pinned = true;
+    //}
 
     // Add springs
     for (int i = 0; i < this->point_masses.size(); i++) {
         PointMass* curr = &(this->point_masses[i]);
         int x = i % this->num_width_points;
-        int y = i / this->num_width_points;
+        // I CHANGED THIS LINE (added % this->num_height_points)
+        int y = (i / this->num_width_points) % this->num_height_points;
+        int z = i / (this->num_width_points * this->num_height_points);
 
         // Structural
         int left_x = x - 1;
@@ -89,12 +90,12 @@ void Cloth::buildGrid() {
         int two_up_y = y + 2;
 
         // Add constraints
-        add_spring(left_x, left_y, curr, this, STRUCTURAL);
-        add_spring(top_x, top_y, curr, this, STRUCTURAL);
-        add_spring(upper_left_x, upper_left_y, curr, this, SHEARING);
-        add_spring(upper_right_x, upper_right_y, curr, this, SHEARING);
-        add_spring(two_left_x, two_left_y, curr, this, BENDING);
-        add_spring(two_up_x, two_up_y, curr, this, BENDING);
+        add_spring(left_x, left_y, z, curr, this, STRUCTURAL);
+        add_spring(top_x, top_y, z, curr, this, STRUCTURAL);
+        add_spring(upper_left_x, upper_left_y, z, curr, this, SHEARING);
+        add_spring(upper_right_x, upper_right_y, z, curr, this, SHEARING);
+        add_spring(two_left_x, two_left_y, z, curr, this, BENDING);
+        add_spring(two_up_x, two_up_y, z, curr, this, BENDING);
     }
 
 }
