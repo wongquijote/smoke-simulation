@@ -48,6 +48,11 @@ struct Cloth {
   ~Cloth();
 
   void buildGrid();
+  
+  // We Changed this 
+  Vector4D getMassColor(int x, int y, int z);
+  void diffuse();
+  void addSmokeSource(int x, int y, int z, int radius);
 
   void simulate(double frames_per_sec, double simulation_steps, ClothParameters *cp,
                 vector<Vector3D> external_accelerations,
@@ -69,6 +74,8 @@ struct Cloth {
   int num_depth_points;
   double thickness;
   e_orientation orientation;
+  // We Changed this
+  Vector3D smoke_source;
 
   // Cloth components
   vector<PointMass> point_masses;

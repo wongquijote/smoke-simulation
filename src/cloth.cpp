@@ -45,14 +45,17 @@ void add_spring(int x0, int y0, int z0, PointMass* mass1, Cloth* mesh, e_spring_
 void Cloth::buildGrid() {
   // TODO (Part 1): Build a grid of masses and springs.
     for (int k = 0; k < num_depth_points; k++) {
-      for (int j = 0; j < num_height_points; j++) {
+       for (int j = 0; j < num_height_points; j++) {
           for (int i = 0; i < num_width_points; i++) {
               double x = width * ((double)i / (double)num_width_points);
               double y = height * ((double)j / (double)num_height_points);
               double z = depth * ((double)k / (double)num_depth_points);
               Vector3D pos = Vector3D(x, y, z);
               PointMass* mass = new PointMass(pos, false);
+              mass->prev_color = Vector4D(0.0);
+              mass->color = Vector4D(0.0);
               this->point_masses.push_back(*mass);
+              mass->smoke_source = false;
           }
       }
     }
@@ -100,101 +103,170 @@ void Cloth::buildGrid() {
 
 }
 
+/*
+Adds a smoke source within out grid of pointmasees
+*/
+void Cloth::addSmokeSource(int x0, int y0, int z0, int radius) {
+  for (int i = (-1 * radius); i < radius; i++) {
+    for (int j = (-1 * radius); j < radius; j++) {
+      for (int k = (-1 * radius); k < radius; k++) {
+        int x = x0 + i;
+        int y = y0 + j;
+        int z = z0 + k;
+        if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
+        && (y < this->num_height_points) && (z < this->num_depth_points)) {
+          int index = x + y * this->num_width_points + z * (this->num_width_points * this->num_height_points);
+          PointMass* curr = &(this->point_masses[index]);
+          curr->prev_color = Vector4D(1.0);
+          curr->color = Vector4D(1.0);
+          curr->smoke_source = true;
+        }
+      }
+    }
+  }
+  return;
+}
+
+/*
+Helper method to check if there is a particle at object space (x, y, z) and returns its previous color
+*/
+Vector4D Cloth::getMassColor(int x, int y, int z) {
+  if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
+  && (y < this->num_height_points) && (z < this->num_depth_points)) {
+    PointMass* curr = &(this->point_masses[x + y * this->num_width_points + z * (this->num_width_points * this->num_depth_points)]);
+    return curr->prev_color;
+  }
+  return Vector4D(0.0);
+}
+
+// We changed this (we added it)
+/*
+Diffuses the smoke intensity of all the particles in the scene
+*/
+void Cloth::diffuse() {
+  for (int i = 0; i < this->point_masses.size(); i++) {
+    PointMass *curr = &(this->point_masses[i]);
+
+    if (curr->smoke_source) {
+      continue;
+    }
+
+    int x = i % this->num_width_points;
+    int y = (i / this->num_width_points) % this->num_height_points;
+    int z = i / (this->num_width_points * this->num_height_points);
+
+    Vector4D front = getMassColor(x, y, z + 1);
+    Vector4D back = getMassColor(x, y, z - 1);
+    Vector4D left = getMassColor(x - 1, y, z);
+    Vector4D right = getMassColor(x + 1, y, z);
+    Vector4D above = getMassColor(x, y + 1, z);
+    Vector4D below = getMassColor(x, y - 1, z);
+    
+    curr->color += 0.05f * (front + back + left + right + above + below - 6.f * curr->prev_color);
+  }
+  for (int i = 0; i < this->point_masses.size(); i++) {
+    PointMass *curr = &(this->point_masses[i]);
+    // update last color
+    curr->prev_color = curr->color;
+  }
+}
+
 void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParameters* cp,
     vector<Vector3D> external_accelerations,
     vector<CollisionObject*>* collision_objects) {
-    double mass = width * height * cp->density / num_width_points / num_height_points;
-    double delta_t = 1.0f / frames_per_sec / simulation_steps;
+    // double mass = width * height * cp->density / num_width_points / num_height_points;
+    // double delta_t = 1.0f / frames_per_sec / simulation_steps;
 
-    // TODO (Part 2): Compute total force acting on each point mass.
-    Vector3D a_ext = 0.0;
-    for (int i = 0; i < external_accelerations.size(); i++) {
-        a_ext += external_accelerations[i];
-    }
+    // // TODO (Part 2): Compute total force acting on each point mass.
+    // Vector3D a_ext = 0.0;
+    // for (int i = 0; i < external_accelerations.size(); i++) {
+    //     a_ext += external_accelerations[i];
+    // }
     
-    Vector3D ext_force = mass * a_ext;
-    for (int i = 0; i < this->point_masses.size(); i++) {
-        PointMass* curr = &(this->point_masses[i]);
-        curr->forces = ext_force;
-    }
+    // Vector3D ext_force = mass * a_ext;
+    // for (int i = 0; i < this->point_masses.size(); i++) {
+    //     PointMass* curr = &(this->point_masses[i]);
+    //     curr->forces = ext_force;
+    // }
 
-    for (int i = 0; i < this->springs.size(); i++) {
-        Spring* curr = &(this->springs[i]);
-        PointMass* mass_a = curr->pm_a;
-        PointMass* mass_b = curr->pm_b;
-        Vector3D spring_force = cp->ks * ((mass_a->position - mass_b->position).norm() - curr->rest_length) *
-            (mass_a->position - mass_b->position).unit();
-        if ((cp->enable_structural_constraints && (curr->spring_type == STRUCTURAL)) ||
-            (cp->enable_shearing_constraints && (curr->spring_type == SHEARING)) ||
-            (cp->enable_bending_constraints && (curr->spring_type == BENDING))) {
-            if (curr->spring_type == BENDING) {
-                spring_force *= 0.2;
-            }
-            mass_a->forces -= spring_force;
-            mass_b->forces += spring_force;
-        }
+    // for (int i = 0; i < this->springs.size(); i++) {
+    //     Spring* curr = &(this->springs[i]);
+    //     PointMass* mass_a = curr->pm_a;
+    //     PointMass* mass_b = curr->pm_b;
+    //     Vector3D spring_force = cp->ks * ((mass_a->position - mass_b->position).norm() - curr->rest_length) *
+    //         (mass_a->position - mass_b->position).unit();
+    //     if ((cp->enable_structural_constraints && (curr->spring_type == STRUCTURAL)) ||
+    //         (cp->enable_shearing_constraints && (curr->spring_type == SHEARING)) ||
+    //         (cp->enable_bending_constraints && (curr->spring_type == BENDING))) {
+    //         if (curr->spring_type == BENDING) {
+    //             spring_force *= 0.2;
+    //         }
+    //         mass_a->forces -= spring_force;
+    //         mass_b->forces += spring_force;
+    //     }
         
-    }
-    // TODO (Part 2): Use Verlet integration to compute new point mass positions
-    for (int i = 0; i < this->point_masses.size(); i++) {
-        PointMass* curr = &(this->point_masses[i]);
-        if (curr->pinned) {
-            continue;
-        }
+    // }
+    // // TODO (Part 2): Use Verlet integration to compute new point mass positions
+    // for (int i = 0; i < this->point_masses.size(); i++) {
+    //     PointMass* curr = &(this->point_masses[i]);
+    //     if (curr->pinned) {
+    //         continue;
+    //     }
         
-        // Calculate new position
-        Vector3D v_dt = curr->position - curr->last_position;
-        Vector3D a_t = curr->forces / mass;
-        Vector3D new_pos = curr->position + (1.0 - (cp->damping / 100.0)) * v_dt + a_t * (delta_t * delta_t);
+    //     // Calculate new position
+    //     Vector3D v_dt = curr->position - curr->last_position;
+    //     Vector3D a_t = curr->forces / mass;
+    //     Vector3D new_pos = curr->position + (1.0 - (cp->damping / 100.0)) * v_dt + a_t * (delta_t * delta_t);
 
-        // Update last position
-        curr->last_position = curr->position;
-        curr->position = new_pos;
-    }
+    //     // Update last position
+    //     curr->last_position = curr->position;
+    //     curr->position = new_pos;
+    // }
 
-    //// TODO (Part 4): Handle self-collisions.
-    build_spatial_map();
-    for (int i = 0; i < this->point_masses.size(); i++) {
-      PointMass* curr = &(this->point_masses[i]);
-      self_collide(*curr, simulation_steps);
-    }
+    // //// TODO (Part 4): Handle self-collisions.
+    // build_spatial_map();
+    // for (int i = 0; i < this->point_masses.size(); i++) {
+    //   PointMass* curr = &(this->point_masses[i]);
+    //   self_collide(*curr, simulation_steps);
+    // }
 
-    // TODO (Part 3): Handle collisions with other primitives.
-    for (int i = 0; i < this->point_masses.size(); i++) {
-      PointMass* curr = &(this->point_masses[i]);
-      for (int j = 0; j < collision_objects->size(); j++) {
-        CollisionObject* collision = (*collision_objects)[j];
-        collision->collide(*curr);
-      }
-    }
+    // // TODO (Part 3): Handle collisions with other primitives.
+    // for (int i = 0; i < this->point_masses.size(); i++) {
+    //   PointMass* curr = &(this->point_masses[i]);
+    //   for (int j = 0; j < collision_objects->size(); j++) {
+    //     CollisionObject* collision = (*collision_objects)[j];
+    //     collision->collide(*curr);
+    //   }
+    // }
 
 
-    // TODO (Part 2): Constrain the changes to be such that the spring does not change
-    // in length more than 10% per timestep [Provot 1995].
-    for (int i = 0; i < this->springs.size(); i++) {
-        Spring* curr = &(this->springs[i]);
-        PointMass* mass_a = curr->pm_a;
-        PointMass* mass_b = curr->pm_b;
-        if (mass_a->pinned && mass_b->pinned) {
-            continue;
-        }
+    // // TODO (Part 2): Constrain the changes to be such that the spring does not change
+    // // in length more than 10% per timestep [Provot 1995].
+    // for (int i = 0; i < this->springs.size(); i++) {
+    //     Spring* curr = &(this->springs[i]);
+    //     PointMass* mass_a = curr->pm_a;
+    //     PointMass* mass_b = curr->pm_b;
+    //     if (mass_a->pinned && mass_b->pinned) {
+    //         continue;
+    //     }
 
-        double dist = (mass_a->position - mass_b->position).norm();
-        if (dist > 1.1 * curr->rest_length) {
-            Vector3D direction = (mass_a->position - mass_b->position).unit();
-            if (mass_a->pinned) {
-                mass_b->position = (-1.0) * direction * (1.1 * curr->rest_length) + mass_a->position;
-            }
-            else if (mass_b->pinned) {
-                mass_a->position = direction * (1.1 * curr->rest_length) + mass_b->position;
-            }
-            else {
-                double diff = dist - (1.1 * curr->rest_length);
-                mass_a->position += (-1.0) * direction * (diff / 2.0);
-                mass_b->position += direction * (diff / 2.0);
-            }
-        }
-    }
+    //     double dist = (mass_a->position - mass_b->position).norm();
+    //     if (dist > 1.1 * curr->rest_length) {
+    //         Vector3D direction = (mass_a->position - mass_b->position).unit();
+    //         if (mass_a->pinned) {
+    //             mass_b->position = (-1.0) * direction * (1.1 * curr->rest_length) + mass_a->position;
+    //         }
+    //         else if (mass_b->pinned) {
+    //             mass_a->position = direction * (1.1 * curr->rest_length) + mass_b->position;
+    //         }
+    //         else {
+    //             double diff = dist - (1.1 * curr->rest_length);
+    //             mass_a->position += (-1.0) * direction * (diff / 2.0);
+    //             mass_b->position += direction * (diff / 2.0);
+    //         }
+    //     }
+    // }
+    diffuse();
 
 }
 

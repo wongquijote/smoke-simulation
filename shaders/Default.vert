@@ -9,6 +9,7 @@ uniform mat4 u_view_projection;
 // properties. An example of this was shown in the rasterizer project, 
 // where each vertex had an associated "color" or "uv" value which we 
 // would later interpolate using barycentric coordinates.
+in vec4 in_color;
 in vec4 in_position;
 in vec4 in_normal;
 in vec4 in_tangent;
@@ -23,6 +24,7 @@ out vec4 v_position;
 out vec4 v_normal;
 out vec2 v_uv;
 out vec4 v_tangent;
+out vec4 v_color;
 
 // Every shader features a "main" function.
 // This is typically where we write to the "out" variables that the
@@ -37,9 +39,10 @@ void main() {
   v_normal = normalize(u_model * in_normal);
   v_uv = in_uv;
   v_tangent = normalize(u_model * in_tangent);
-  
+  v_color = in_color;
+
   // The final screen-space location of this vertex which the
   // GPU's triangle rasterizer takes in.
-  gl_PointSize = 5;
+  gl_PointSize = 10;
   gl_Position = u_view_projection * u_model * in_position;
 }

@@ -488,6 +488,7 @@ int main(int argc, char **argv) {
 
   // Initialize the Cloth object
   cloth.buildGrid();
+  cloth.addSmokeSource(25, 25, 25, 5);
   //cloth.buildClothMesh();
 
   // Initialize the ClothSimulator object

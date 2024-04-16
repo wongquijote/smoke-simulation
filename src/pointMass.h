@@ -4,6 +4,7 @@
 #include "CGL/CGL.h"
 #include "CGL/misc.h"
 #include "CGL/vector3D.h"
+#include "CGL/vector4D.h"
 
 using namespace CGL;
 
@@ -22,12 +23,15 @@ struct PointMass {
 
   // static values
   bool pinned;
+  bool smoke_source;
   Vector3D start_position;
 
   // dynamic values
   Vector3D position;
   Vector3D last_position;
   Vector3D forces;
+  Vector4D prev_color;
+  Vector4D color;
 
   // mesh reference
   Halfedge *halfedge;

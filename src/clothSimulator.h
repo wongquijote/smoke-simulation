@@ -60,7 +60,7 @@ private:
   int simulation_steps = 30;
 
   CGL::Vector3D gravity = CGL::Vector3D(0, -9.8, 0);
-  nanogui::Color color = nanogui::Color(0.5f, 0.5f, 0.5f, 0.5f);
+  nanogui::Color color = nanogui::Color(0.0f, 0.0f, 0.0f, 0.1f);
 
   Cloth *cloth;
   ClothParameters *cp;
