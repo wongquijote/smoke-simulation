@@ -70,7 +70,7 @@
   <br><br>
 
   <div>
-    <h2 align="middle">Acomplished</h2>
+    <h2 align="middle">Accomplished</h2>
     <p>We have completed a implementation of smoke diffusion (i.e no velocity field) in C++ using clothsim as the base. Our smoke diffusion model is mostly based off <a href="https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf" style="color:greenyellow">Jos Stam's Paper on Real-Time Fluid Dynamics</a>. Our infrastrucutre consists of an $x = N$ by $y = N$ by $z = N$
     grid which will consists of densities of material, in this case, smoke. The intuition is as follows: for a single cell, we have flow out and flow in. Assuming equal flow in from all sources and some diffusion rate $d \in [0, 1]$, we have:
     $$x_t = (1 - d)x_{t - 1} + (\frac{d}{6}\sum_{z \in N(x)}z_{t-1})$$
