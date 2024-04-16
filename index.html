@@ -1,0 +1,23 @@
+<html>
+	<head>
+	</head>
+	<body>
+		<h3>Smoke Sim Webpages</h3>
+		<br><br>
+		<a href="/project_proposal/index.html">Project Proposal</a>
+		<br><br>
+		<a href="/milestone_website/index.html">Milestone Website</a>
+		<br><br>
+		<a href="/Final Website/index.html">Final Website</a>
+	</body>
+	<script>
+		var links = document.body.getElementsByTagName("a")
+		var a = window.location.href.indexOf(".io")
+		var repo_name = window.location.href.substring(a+3)
+		for(var i = 0; i < links.length; i++){
+			var link = links[i]
+			var actual_name = link.href.substring(link.href.indexOf(".io")+4)
+			link.href = repo_name + actual_name
+		}
+	</script>
+</html>

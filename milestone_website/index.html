@@ -1,0 +1,116 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+    <script type="text/javascript"
+    src="https://www.maths.nottingham.ac.uk/plp/pmadw/LaTeXMathML.js">
+    </script>
+  <style>
+    body {
+      background-color: #404040;
+      background-color: #36454F;
+      padding: 100px;
+      width: 1000px;
+      margin: auto;
+      text-align: left;
+      font-weight: 300;
+      font-family: 'Open Sans', sans-serif;
+      color: white;
+    }
+    h1, h2, h3, h4 {
+      font-family: 'Source Sans Pro', sans-serif;
+    }
+    kbd {
+      color: #121212;
+    }
+    blockquote {
+      color: #888;
+      border: 2px solid #333;
+      padding: 10px;
+      background-color: #ccc;
+    }
+
+    table.custom-tbl {
+      border: 1px solid;
+    }
+
+    table.custom-tbl th {
+      border: 1px solid;
+      background-color: rgb(99, 209, 209);
+    }
+
+    table.custom-tbl td {
+      border: 1px solid;
+      background-color: #f1e686a8;
+    }
+  </style>
+
+  <title>CS 184 3D Smoke Simulator</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <!-- Not using below due to lacking bold fontfaces -->
+  <!-- <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro|Source+Sans+Pro:400,700" rel="stylesheet"> -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto+Mono|Roboto+Slab|Roboto:300,400,500,700" rel="stylesheet" />
+
+  <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
+  </script>  
+</head>
+
+<body>
+
+  <h1 align="middle">3-Dimensional Smoke Simulator</h1>
+  <h2 align="middle">Michael Huang, Geovanni Mojica, Kyle Wong, Ethan Tam</h2>
+
+  <br><br>
+
+  <div>
+    <h2 align="middle">Acomplished</h2>
+    <p>We have completed a implementation of smoke diffusion (i.e no velocity field) in C++ using clothsim as the base. Our smoke diffusion model is mostly based off <a href="https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf" style="color:greenyellow">Jos Stam's Paper on Real-Time Fluid Dynamics</a>. Our infrastrucutre consists of an $x = N$ by $y = N$ by $z = N$
+    grid which will consists of densities of material, in this case, smoke. The intuition is as follows: for a single cell, we have flow out and flow in. Assuming equal flow in from all sources and some diffusion rate $d \in [0, 1]$, we have:
+    $$x_t = (1 - d)x_{t - 1} + (\frac{d}{6}\sum_{z \in N(x)}z_{t-1})$$
+    This simply says $dx_{t - 1}$ density will flow out of the current cell, and that for any neighbor $z$, $\frac{z_{t - 1}}{6}$ density will come in. To give the illusion (without velocity field forces) that the smoke travels upward, we change the flow such that
+    we get much more flow in from the bottom cell. Our flow equation thus becomes:
+    $$x_t = (1 - d)x_{t - 1} + \frac{d}{8}(x_{front} + x_{back} + x_{left} + x_{right} + x_{above} + 3x_{below})$$
+    In our current implementation, we have a smoke source follow a the parametric function of a circle to emphasise the 3D effect. The smoke source is defined as $x = c_x + r\cos t, y = c_y, z = c_z + r\sin t$, where $t$ is the timestep of the simulator.
+</p> 
+  </div>
+  <div>
+    <h2 align="middle">Preliminary Results</h2>
+    <p>Below are different renderings of the smoke diffusion with different diffusion rates $d$</p>
+  </div>
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="gifs/0.1.gif" align="middle" width="300vw" />
+          <figcaption>$d = 0.1$</figcaption>
+        </td>
+        <td>
+          <img src="gifs/0.5.gif" align="middle" width="300vw" />
+          <figcaption>$d = 0.5$</figcaption>
+        </td>
+        <td>
+          <img src="gifs/0.9.gif" align="middle" width="300vw" />
+          <figcaption>$d = 0.9$</figcaption>
+        </td>
+        <td>
+      </tr>
+    </table>
+  </div>
+  <div>
+    <h2 align="middle">Reflection on Progress Relative to Plan</h2>
+    <p>Relative to our plan, we somewhat went backwards. Instead of doing the advect step, we found it was easiest to do the diffusion step first, since the advect step required having a velocity field. Regardless of our out of ordering scheduling, we are happy with our progress, as we have an infrastucture set up in clothsim, as well as finishing the diffusion step of the smoke simulation. However, we didn't write any of our code in OpenGL, and have only written code in C++ to hit the ground running. Originally, we stated that we were going to write our project in Python, and use libraries such as pyopenGL and pytorch. However, we found that rendering python using a grid based method (such as in pygame) can be difficult and slow. Thus, we opted with using clothsim as the base and doing everything in C++.</p>
+  </div>
+  <div>
+    <h2 align="middle">Next Steps</h2>
+    <p>Most of our code right now runs using for loops, using only CPU computations. To make it much faster, we plan to use GPU computations and migrate our work to OpenGL. After refactoring, we plan to add a 3 dimensional velocity field that will allow for more dynamic smoke simulations. The interactivity of the velocity field is yet to be determined (perhaps by mouse or by a parametric function across timesteps), but with the velocity field, we will be able to implement the next advect step in 3-dimensions. Next is the dynamic velocity field, allow velocity to evolve over time through self-advection or from different forces, which will allow for more realistic smoke simulations. After this, since Jos Stam's fluid solver is arbitrary, We plan to have different shaders to represent different fluild like simulations, such as fire.</p>
+  </div> 
+
+</body>
+</html>

@@ -8,6 +8,7 @@
 #include "collision/sphere.h"
 
 using namespace std;
+int timestep = 0;
 
 Cloth::Cloth(double width, double height, double depth, int num_width_points,
              int num_height_points, int num_depth_points, float thickness) {
@@ -55,7 +56,7 @@ void Cloth::buildGrid() {
               mass->prev_color = Vector4D(0.0);
               mass->color = Vector4D(0.0);
               this->point_masses.push_back(*mass);
-              mass->smoke_source = false;
+              mass->smoke_source = true;
           }
       }
     }
@@ -144,10 +145,17 @@ Vector4D Cloth::getMassColor(int x, int y, int z) {
 Diffuses the smoke intensity of all the particles in the scene
 */
 void Cloth::diffuse() {
+    timestep += 1;
+    double diff = 0.5;
   for (int i = 0; i < this->point_masses.size(); i++) {
     PointMass *curr = &(this->point_masses[i]);
 
     if (curr->smoke_source) {
+        if (timestep % 10 == 0) {
+            curr->color = Vector4D(0.0);
+            curr->prev_color = Vector4D(0.0);
+            curr->smoke_source = false;
+     }
       continue;
     }
 
@@ -162,12 +170,20 @@ void Cloth::diffuse() {
     Vector4D above = getMassColor(x, y + 1, z);
     Vector4D below = getMassColor(x, y - 1, z);
     
-    curr->color += 0.05f * (front + back + left + right + above + below - 6.f * curr->prev_color);
+    curr->color = (1.0 - diff) * curr->color + (diff / 8.0) * (front + back + left + right + above + below * 3.0);
+    curr->color.w = min(1.0, curr->color.w);
+    curr->color.x = min(1.0, curr->color.x);
+    curr->color.y = min(1.0, curr->color.y);
+    curr->color.z = min(1.0, curr->color.z);
   }
   for (int i = 0; i < this->point_masses.size(); i++) {
     PointMass *curr = &(this->point_masses[i]);
     // update last color
     curr->prev_color = curr->color;
+  }
+  if (timestep % 3 == 0) {
+      double t = timestep / 60.0;
+      addSmokeSource((int)floor(25 + 10 * cos(t)), 5, (int)floor(25 + 10 * sin(t)), 1);
   }
 }
 
