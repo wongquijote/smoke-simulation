@@ -187,6 +187,8 @@ bool loadObjectsFromFile(string filename, Cloth *cloth, ClothParameters *cp, vec
       float thickness;
       e_orientation orientation;
       vector<vector<int>> pinned;
+      bool show_grid;
+      bool upward_smoke;
 
       auto it_width = object.find("width");
       if (it_width != object.end()) {
@@ -254,6 +256,20 @@ bool loadObjectsFromFile(string filename, Cloth *cloth, ClothParameters *cp, vec
         }
       }
 
+      auto it_show_grid = object.find("show_grid");
+      if (it_show_grid != object.end()) {
+        show_grid = *it_show_grid;
+      } else {
+        show_grid = false;
+      }
+
+      auto it_upward_smoke = object.find("upward_smoke");
+      if (it_upward_smoke != object.end()) {
+        upward_smoke = *it_upward_smoke;
+      } else {
+        upward_smoke = true;
+      }
+
       cloth->width = width;
       cloth->height = height;
       cloth->depth = depth;
@@ -263,6 +279,8 @@ bool loadObjectsFromFile(string filename, Cloth *cloth, ClothParameters *cp, vec
       cloth->thickness = thickness;
       cloth->orientation = orientation;
       cloth->pinned = pinned;
+      cloth->show_grid = show_grid;
+      cloth->upward_smoke = upward_smoke;
 
       // Cloth parameters
       bool enable_structural_constraints, enable_shearing_constraints, enable_bending_constraints;

@@ -44,7 +44,7 @@ struct ClothParameters {
 struct Cloth {
   Cloth() {}
   Cloth(double width, double height, double depth, int num_width_points,
-        int num_height_points, int num_depth_points, float thickness);
+        int num_height_points, int num_depth_points, float thickness, bool show_grid);
   ~Cloth();
 
   void buildGrid();
@@ -53,6 +53,8 @@ struct Cloth {
   Vector4D getMassColor(int x, int y, int z);
   void diffuse();
   void addSmokeSource(int x, int y, int z, int radius);
+  void advect(double dt);
+  Vector4D trilinear_interpolate(double x, double y, double z);
 
   void simulate(double frames_per_sec, double simulation_steps, ClothParameters *cp,
                 vector<Vector3D> external_accelerations,
@@ -75,6 +77,8 @@ struct Cloth {
   double thickness;
   e_orientation orientation;
   // We Changed this
+  bool show_grid;
+  bool upward_smoke;
   Vector3D smoke_source;
 
   // Cloth components

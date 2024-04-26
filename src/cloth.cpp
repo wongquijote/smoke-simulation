@@ -11,7 +11,7 @@ using namespace std;
 int timestep = 0;
 
 Cloth::Cloth(double width, double height, double depth, int num_width_points,
-             int num_height_points, int num_depth_points, float thickness) {
+             int num_height_points, int num_depth_points, float thickness, bool show_grid) {
   this->width = width;
   this->height = height;
   this->depth = depth;
@@ -19,9 +19,11 @@ Cloth::Cloth(double width, double height, double depth, int num_width_points,
   this->num_height_points = num_height_points;
   this->num_depth_points = num_depth_points;
   this->thickness = thickness;
+  this->show_grid = show_grid;
+  this->upward_smoke = true;
 
   buildGrid();
-  buildClothMesh();
+  // buildClothMesh();
 }
 
 Cloth::~Cloth() {
@@ -34,14 +36,14 @@ Cloth::~Cloth() {
 }
 
 // Adds a spring btw point mass at (x0, y0, z0) and mass1 if the x0 and y0 coordinates are in bounds
-void add_spring(int x0, int y0, int z0, PointMass* mass1, Cloth* mesh, e_spring_type spring_type) {
-    if ((x0 >= 0) && (x0 < mesh->num_width_points) && (y0 >= 0) && (y0 < mesh->num_height_points)
-    && (z0 >= 0) && (z0 < mesh->num_depth_points)) {
-        PointMass* mass0 = &(mesh->point_masses[x0 + y0 * mesh->num_width_points + z0 * (mesh->num_width_points * mesh->num_height_points)]);
-        Spring* spring = new Spring(mass0, mass1, spring_type);
-        mesh->springs.push_back(*spring);
-    }
-}
+// void add_spring(int x0, int y0, int z0, PointMass* mass1, Cloth* mesh, e_spring_type spring_type) {
+//     if ((x0 >= 0) && (x0 < mesh->num_width_points) && (y0 >= 0) && (y0 < mesh->num_height_points)
+//     && (z0 >= 0) && (z0 < mesh->num_depth_points)) {
+//         PointMass* mass0 = &(mesh->point_masses[x0 + y0 * mesh->num_width_points + z0 * (mesh->num_width_points * mesh->num_height_points)]);
+//         Spring* spring = new Spring(mass0, mass1, spring_type);
+//         mesh->springs.push_back(*spring);
+//     }
+// }
 
 void Cloth::buildGrid() {
   // TODO (Part 1): Build a grid of masses and springs.
@@ -55,59 +57,28 @@ void Cloth::buildGrid() {
               PointMass* mass = new PointMass(pos, false);
               mass->prev_color = Vector4D(0.0);
               mass->color = Vector4D(0.0);
+              mass->velocity = Vector3D(10.0, 25.0, 0.0);
+
+              if (show_grid) {
+                mass->prev_color = Vector4D(0.5);
+                mass->color = Vector4D(0.5);
+              }
+              
               this->point_masses.push_back(*mass);
-              mass->smoke_source = true;
+              mass->smoke_source = false;
           }
       }
     }
-
-    //// Check if pinned
-    //for (int i = 0; i < pinned.size(); i++) {
-    //    int index = pinned[i][0] + num_width_points * pinned[i][1];
-    //    this->point_masses[index].pinned = true;
-    //}
-
-    // Add springs
-    for (int i = 0; i < this->point_masses.size(); i++) {
-        PointMass* curr = &(this->point_masses[i]);
-        int x = i % this->num_width_points;
-        // I CHANGED THIS LINE (added % this->num_height_points)
-        int y = (i / this->num_width_points) % this->num_height_points;
-        int z = i / (this->num_width_points * this->num_height_points);
-
-        // Structural
-        int left_x = x - 1;
-        int left_y = y;
-        int top_x = x;
-        int top_y = y + 1;
-
-        // Shearing
-        int upper_left_x = x - 1;
-        int upper_left_y = y + 1;
-        int upper_right_x = x + 1;
-        int upper_right_y = y + 1;
-
-        // Bending
-        int two_left_x = x - 2;
-        int two_left_y = y;
-        int two_up_x = x;
-        int two_up_y = y + 2;
-
-        // Add constraints
-        add_spring(left_x, left_y, z, curr, this, STRUCTURAL);
-        add_spring(top_x, top_y, z, curr, this, STRUCTURAL);
-        add_spring(upper_left_x, upper_left_y, z, curr, this, SHEARING);
-        add_spring(upper_right_x, upper_right_y, z, curr, this, SHEARING);
-        add_spring(two_left_x, two_left_y, z, curr, this, BENDING);
-        add_spring(two_up_x, two_up_y, z, curr, this, BENDING);
-    }
-
 }
 
 /*
 Adds a smoke source within out grid of pointmasees
 */
 void Cloth::addSmokeSource(int x0, int y0, int z0, int radius) {
+  if (show_grid) {
+    return;
+  }
+
   for (int i = (-1 * radius); i < radius; i++) {
     for (int j = (-1 * radius); j < radius; j++) {
       for (int k = (-1 * radius); k < radius; k++) {
@@ -146,7 +117,7 @@ Diffuses the smoke intensity of all the particles in the scene
 */
 void Cloth::diffuse() {
     timestep += 1;
-    double diff = 0.5;
+    double diff = 0.8;
   for (int i = 0; i < this->point_masses.size(); i++) {
     PointMass *curr = &(this->point_masses[i]);
 
@@ -170,120 +141,126 @@ void Cloth::diffuse() {
     Vector4D above = getMassColor(x, y + 1, z);
     Vector4D below = getMassColor(x, y - 1, z);
     
-    curr->color = (1.0 - diff) * curr->color + (diff / 8.0) * (front + back + left + right + above + below * 3.0);
+    if (upward_smoke) {
+      curr->color = (1.0 - diff) * curr->color + (diff / 8.0) * (front + back + left + right + above + below * 3.0);
+    } else {
+      curr->color = (1.0 - diff) * curr->color + (diff / 6.0) * (front + back + left + right + above + below);
+    }
+    
     curr->color.w = min(1.0, curr->color.w);
     curr->color.x = min(1.0, curr->color.x);
     curr->color.y = min(1.0, curr->color.y);
     curr->color.z = min(1.0, curr->color.z);
   }
+
   for (int i = 0; i < this->point_masses.size(); i++) {
     PointMass *curr = &(this->point_masses[i]);
     // update last color
     curr->prev_color = curr->color;
   }
+
   if (timestep % 3 == 0) {
       double t = timestep / 60.0;
       addSmokeSource((int)floor(25 + 10 * cos(t)), 5, (int)floor(25 + 10 * sin(t)), 1);
   }
 }
 
+/*
+given a 3 dimensional input, return the trilinear interpolation of the surrouding colors. handles out of indexing
+
+use case is for backtracing velocity
+*/
+Vector4D Cloth::trilinear_interpolate(double x, double y, double z) {
+  //edge case handling
+  if (x < 0.5) {
+    x = 0.0;
+  } else if (x >= this->num_width_points - 1) {
+    x = (double) this->num_width_points - 2;
+  }
+  if (y < 0.5) {
+    y = 0.0;
+  } else if (y >= this->num_height_points - 1) {
+    y = (double) this->num_height_points - 2;
+  }
+  if (z < 0.5) {
+    z = 0.0;
+  } else if (z >= this->num_depth_points - 1) {
+    z = (double) this->num_depth_points - 2;
+  }
+
+  //set up auxilliary variables. In order, these are coordinates, ratios, and colors
+  int i0        = (int) floor(x);
+  int j0        = (int) floor(y);
+  int k0        = (int) floor(z);
+  int i1        = i0 + 1;
+  int j1        = j0 + 1;
+  int k1        = k0 + 1;
+  double s1     = x - (double) i0;
+  double s0     = 1 - s1;
+  double t1     = y - (double) j0;
+  double t0     = 1 - t1;
+  double u1     = z - (double) k0;
+  double u0     = 1 - u1;
+  Vector4D p000 = getMassColor(i0, j0, k0);
+  Vector4D p001 = getMassColor(i0, j0, k1);
+  Vector4D p010 = getMassColor(i0, j1, k0);
+  Vector4D p011 = getMassColor(i0, j1, k1);
+  Vector4D p100 = getMassColor(i1, j0, k0);
+  Vector4D p101 = getMassColor(i1, j0, k1);
+  Vector4D p110 = getMassColor(i1, j1, k0);
+  Vector4D p111 = getMassColor(i1, j1, k1);
+
+  //trilinear interpolate math
+  Vector4D out = s0 * t0 * (u0 * p000 + u1 * p001) +
+                 s0 * t1 * (u0 * p010 + u1 * p011) +
+                 s1 * t0 * (u0 * p100 + u1 * p101) +
+                 s1 * t1 * (u0 * p110 + u1 * p111);
+  out.w = max(0.0, min(1.0, out.w));
+  out.x = max(0.0, min(1.0, out.x));
+  out.y = max(0.0, min(1.0, out.y));
+  out.z = max(0.0, min(1.0, out.z));
+
+  return out;
+}
+void Cloth::advect(double dt) {
+  for (int i = 0; i < this->point_masses.size(); i++) {
+    PointMass *curr = &(this->point_masses[i]);
+    if (curr->smoke_source) {
+      continue;
+    }
+
+    int x_index = i % this->num_width_points;
+    int y_index = (i / this->num_width_points) % this->num_height_points;
+    int z_index = i / (this->num_width_points * this->num_height_points);
+
+    //position if we went backwards by one timestep, assuming dt is 1 second
+    double x = (double) x_index - curr->velocity.x * dt;
+    double y = (double) y_index - curr->velocity.y * dt;
+    double z = (double) z_index - curr->velocity.z * dt;
+
+    curr->color = trilinear_interpolate(x, y, z);
+    curr->color.w = min(1.0, curr->color.w);
+    curr->color.x = min(1.0, curr->color.x);
+    curr->color.y = min(1.0, curr->color.y);
+    curr->color.z = min(1.0, curr->color.z);
+    
+  }
+  for (int i = 0; i < this->point_masses.size(); i++) {
+    PointMass *curr = &(this->point_masses[i]);
+    // update last color
+    curr->prev_color = curr->color;
+  }
+}
+
 void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParameters* cp,
     vector<Vector3D> external_accelerations,
     vector<CollisionObject*>* collision_objects) {
-    // double mass = width * height * cp->density / num_width_points / num_height_points;
-    // double delta_t = 1.0f / frames_per_sec / simulation_steps;
-
-    // // TODO (Part 2): Compute total force acting on each point mass.
-    // Vector3D a_ext = 0.0;
-    // for (int i = 0; i < external_accelerations.size(); i++) {
-    //     a_ext += external_accelerations[i];
-    // }
+    double delta_t = 1.0f / frames_per_sec / simulation_steps;
     
-    // Vector3D ext_force = mass * a_ext;
-    // for (int i = 0; i < this->point_masses.size(); i++) {
-    //     PointMass* curr = &(this->point_masses[i]);
-    //     curr->forces = ext_force;
-    // }
-
-    // for (int i = 0; i < this->springs.size(); i++) {
-    //     Spring* curr = &(this->springs[i]);
-    //     PointMass* mass_a = curr->pm_a;
-    //     PointMass* mass_b = curr->pm_b;
-    //     Vector3D spring_force = cp->ks * ((mass_a->position - mass_b->position).norm() - curr->rest_length) *
-    //         (mass_a->position - mass_b->position).unit();
-    //     if ((cp->enable_structural_constraints && (curr->spring_type == STRUCTURAL)) ||
-    //         (cp->enable_shearing_constraints && (curr->spring_type == SHEARING)) ||
-    //         (cp->enable_bending_constraints && (curr->spring_type == BENDING))) {
-    //         if (curr->spring_type == BENDING) {
-    //             spring_force *= 0.2;
-    //         }
-    //         mass_a->forces -= spring_force;
-    //         mass_b->forces += spring_force;
-    //     }
-        
-    // }
-    // // TODO (Part 2): Use Verlet integration to compute new point mass positions
-    // for (int i = 0; i < this->point_masses.size(); i++) {
-    //     PointMass* curr = &(this->point_masses[i]);
-    //     if (curr->pinned) {
-    //         continue;
-    //     }
-        
-    //     // Calculate new position
-    //     Vector3D v_dt = curr->position - curr->last_position;
-    //     Vector3D a_t = curr->forces / mass;
-    //     Vector3D new_pos = curr->position + (1.0 - (cp->damping / 100.0)) * v_dt + a_t * (delta_t * delta_t);
-
-    //     // Update last position
-    //     curr->last_position = curr->position;
-    //     curr->position = new_pos;
-    // }
-
-    // //// TODO (Part 4): Handle self-collisions.
-    // build_spatial_map();
-    // for (int i = 0; i < this->point_masses.size(); i++) {
-    //   PointMass* curr = &(this->point_masses[i]);
-    //   self_collide(*curr, simulation_steps);
-    // }
-
-    // // TODO (Part 3): Handle collisions with other primitives.
-    // for (int i = 0; i < this->point_masses.size(); i++) {
-    //   PointMass* curr = &(this->point_masses[i]);
-    //   for (int j = 0; j < collision_objects->size(); j++) {
-    //     CollisionObject* collision = (*collision_objects)[j];
-    //     collision->collide(*curr);
-    //   }
-    // }
-
-
-    // // TODO (Part 2): Constrain the changes to be such that the spring does not change
-    // // in length more than 10% per timestep [Provot 1995].
-    // for (int i = 0; i < this->springs.size(); i++) {
-    //     Spring* curr = &(this->springs[i]);
-    //     PointMass* mass_a = curr->pm_a;
-    //     PointMass* mass_b = curr->pm_b;
-    //     if (mass_a->pinned && mass_b->pinned) {
-    //         continue;
-    //     }
-
-    //     double dist = (mass_a->position - mass_b->position).norm();
-    //     if (dist > 1.1 * curr->rest_length) {
-    //         Vector3D direction = (mass_a->position - mass_b->position).unit();
-    //         if (mass_a->pinned) {
-    //             mass_b->position = (-1.0) * direction * (1.1 * curr->rest_length) + mass_a->position;
-    //         }
-    //         else if (mass_b->pinned) {
-    //             mass_a->position = direction * (1.1 * curr->rest_length) + mass_b->position;
-    //         }
-    //         else {
-    //             double diff = dist - (1.1 * curr->rest_length);
-    //             mass_a->position += (-1.0) * direction * (diff / 2.0);
-    //             mass_b->position += direction * (diff / 2.0);
-    //         }
-    //     }
-    // }
-    diffuse();
-
+    if (!this->show_grid) {
+      diffuse();
+      advect(delta_t);
+    }
 }
 
 void Cloth::build_spatial_map() {
