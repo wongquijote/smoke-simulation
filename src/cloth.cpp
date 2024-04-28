@@ -139,22 +139,19 @@ Helper method to check if there is a particle at object space (x, y, z) and retu
 Vector4D Cloth::getMassColor(int x, int y, int z) {
   if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
   && (y < this->num_height_points) && (z < this->num_depth_points)) {
-    int index = x + y * this->num_width_points + z * (this->num_width_points * this->num_depth_points);
-    PointMass* curr = &(this->point_masses[index]);
-
-    Vector4D* curr_density = &(this->prev_density[index]);
-    return *curr_density;
+    PointMass* curr = &(this->point_masses[x + y * this->num_width_points + z * (this->num_width_points * this->num_depth_points)]);
+    return curr->prev_color;
   }
   return Vector4D(0.0);
 }
 
 
 // Returns the value corresponding to the coordinate (x, y, z) from values
-Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D> values) {
+Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D>* values) {
   if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
   && (y < this->num_height_points) && (z < this->num_depth_points)) {
     int index = IX(x, y, z);
-    return values[index];
+    return (*values)[index];
   }
   return Vector4D(0.0);
 }
@@ -170,11 +167,11 @@ void Cloth::diffuse() {
     PointMass *curr = &(this->point_masses[i]);
 
     if (curr->smoke_source) {
-        if (timestep % 10 == 0) {
+      if (timestep % 10 == 0) {
             curr->color = Vector4D(0.0);
             curr->prev_color = Vector4D(0.0);
             curr->smoke_source = false;
-     }
+      }
       continue;
     }
 
@@ -215,11 +212,21 @@ void Cloth::diffuse() {
 
 void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_density) {
   double diff = 0.8;
+  timestep += 1;
+
   int N_x = this->num_width_points;
   int N_y = this->num_height_points;
   int N_z = this->num_depth_points;
 
   for (int i = 0; i < (*prev).size(); i++) {
+    PointMass *mass = &(this->point_masses[i]);
+    if (mass->smoke_source) {
+      if (timestep % 10 == 0) {
+            mass->smoke_source = false;
+      }
+      continue;
+    }
+
     int x_i = i % N_x;
     int y_i = (i / N_x) % N_y;
     int z_i = i / (N_x * N_y);
@@ -227,12 +234,12 @@ void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_den
     Vector4D curr_value = (*prev)[IX(x_i, y_i, z_i)];
     Vector4D* new_value = &((*curr)[IX(x_i, y_i, z_i)]);
 
-    Vector4D front = getParticleProperty(x_i, y_i, z_i + 1, *prev);
-    Vector4D back  = getParticleProperty(x_i, y_i, z_i - 1, *prev);
-    Vector4D left  = getParticleProperty(x_i - 1, y_i, z_i, *prev);
-    Vector4D right = getParticleProperty(x_i + 1, y_i, z_i, *prev);
-    Vector4D above = getParticleProperty(x_i, y_i + 1, z_i, *prev);
-    Vector4D below = getParticleProperty(x_i, y_i - 1, z_i, *prev);
+    Vector4D front = getParticleProperty(x_i, y_i, z_i + 1, prev);
+    Vector4D back  = getParticleProperty(x_i, y_i, z_i - 1, prev);
+    Vector4D left  = getParticleProperty(x_i - 1, y_i, z_i, prev);
+    Vector4D right = getParticleProperty(x_i + 1, y_i, z_i, prev);
+    Vector4D above = getParticleProperty(x_i, y_i + 1, z_i, prev);
+    Vector4D below = getParticleProperty(x_i, y_i - 1, z_i, prev);
 
     Vector4D result = curr_value;
 
@@ -251,6 +258,11 @@ void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_den
 
     // Update previous value
     updateVector(prev_value, curr_value, is_density);
+  }
+
+  if (timestep % 3 == 0) {
+      double t = timestep / 60.0;
+      addSmokeSource((int)floor(25 + 10 * cos(t)), 5, (int)floor(25 + 10 * sin(t)), 1);
   }
 
 }
@@ -314,7 +326,7 @@ Vector4D Cloth::trilinear_interpolate(double x, double y, double z) {
 }
 
 // trilinear interpolates values from values surrounding the coordinate (x, y, z)
-Vector4D Cloth::trilinear_interpolate2(vector<Vector4D> values, double x, double y, double z) {
+Vector4D Cloth::trilinear_interpolate2(vector<Vector4D>* values, double x, double y, double z) {
   //edge case handling
   if (x < 0.5) {
     x = 0.0;
@@ -403,6 +415,11 @@ void Cloth::advect2(vector<Vector4D>* prev_d, vector<Vector4D>* curr_d, vector<V
   int N_z = this->num_depth_points;
 
   for (int i = 0; i < (*prev_d).size(); i++) {
+    PointMass *mass = &(this->point_masses[i]);
+    if (mass->smoke_source) {
+      continue;
+    }
+
     int x_i = i % N_x;
     int y_i = (i / N_x) % N_y;
     int z_i = i / (N_x * N_y);
@@ -414,7 +431,7 @@ void Cloth::advect2(vector<Vector4D>* prev_d, vector<Vector4D>* curr_d, vector<V
     double y = (double) y_i - curr_velocity.y * dt;
     double z = (double) z_i - curr_velocity.z * dt;
 
-    Vector4D res = trilinear_interpolate2(*prev_d, x, y, z);
+    Vector4D res = trilinear_interpolate2(prev_d, x, y, z);
     updateVector(curr_value, res, is_density);
   }
 
@@ -444,12 +461,12 @@ void Cloth::project(vector<Vector4D>* prev_v_field, vector<Vector4D>* v_field) {
     y_i = (i / N_x) % N_y;
     z_i = i / (N_x * N_y);
     
-    front = getParticleProperty(x_i, y_i, z_i + 1, *v_field);
-    back  = getParticleProperty(x_i, y_i, z_i - 1, *v_field);
-    left  = getParticleProperty(x_i - 1, y_i, z_i, *v_field);
-    right = getParticleProperty(x_i + 1, y_i, z_i, *v_field);
-    above = getParticleProperty(x_i, y_i + 1, z_i, *v_field);
-    below = getParticleProperty(x_i, y_i - 1, z_i, *v_field);
+    front = getParticleProperty(x_i, y_i, z_i + 1, v_field);
+    back  = getParticleProperty(x_i, y_i, z_i - 1, v_field);
+    left  = getParticleProperty(x_i - 1, y_i, z_i, v_field);
+    right = getParticleProperty(x_i + 1, y_i, z_i, v_field);
+    above = getParticleProperty(x_i, y_i + 1, z_i, v_field);
+    below = getParticleProperty(x_i, y_i - 1, z_i, v_field);
 
     Vector4D div_res = -0.5*h*((front.z - back.z) + (right.x - left.x) + (above.y - below.y)) * Vector4D(1.0);
     div.push_back(div_res);
@@ -466,12 +483,12 @@ void Cloth::project(vector<Vector4D>* prev_v_field, vector<Vector4D>* v_field) {
       Vector4D curr_div = div[IX(x_i, y_i, z_i)];
       Vector4D* curr_p   = &(proj[IX(x_i, y_i, z_i)]);
       
-      front = getParticleProperty(x_i, y_i, z_i + 1, proj);
-      back  = getParticleProperty(x_i, y_i, z_i - 1, proj);
-      left  = getParticleProperty(x_i - 1, y_i, z_i, proj);
-      right = getParticleProperty(x_i + 1, y_i, z_i, proj);
-      above = getParticleProperty(x_i, y_i + 1, z_i, proj);
-      below = getParticleProperty(x_i, y_i - 1, z_i, proj);
+      front = getParticleProperty(x_i, y_i, z_i + 1, &proj);
+      back  = getParticleProperty(x_i, y_i, z_i - 1, &proj);
+      left  = getParticleProperty(x_i - 1, y_i, z_i, &proj);
+      right = getParticleProperty(x_i + 1, y_i, z_i, &proj);
+      above = getParticleProperty(x_i, y_i + 1, z_i, &proj);
+      below = getParticleProperty(x_i, y_i - 1, z_i, &proj);
 
       Vector4D proj_res = (1.0/6.0) * (curr_div + front + back + left + right + above + below);
       updateVector(curr_p, proj_res, false);
@@ -487,12 +504,12 @@ void Cloth::project(vector<Vector4D>* prev_v_field, vector<Vector4D>* v_field) {
     Vector4D* curr_v = &((*v_field)[IX(x_i, y_i, z_i)]);
     Vector4D* prev_v = &((*prev_v_field)[IX(x_i, y_i, z_i)]);
 
-    front = getParticleProperty(x_i, y_i, z_i + 1, proj);
-    back  = getParticleProperty(x_i, y_i, z_i - 1, proj);
-    left  = getParticleProperty(x_i - 1, y_i, z_i, proj);
-    right = getParticleProperty(x_i + 1, y_i, z_i, proj);
-    above = getParticleProperty(x_i, y_i + 1, z_i, proj);
-    below = getParticleProperty(x_i, y_i - 1, z_i, proj);
+    front = getParticleProperty(x_i, y_i, z_i + 1, &proj);
+    back  = getParticleProperty(x_i, y_i, z_i - 1, &proj);
+    left  = getParticleProperty(x_i - 1, y_i, z_i, &proj);
+    right = getParticleProperty(x_i + 1, y_i, z_i, &proj);
+    above = getParticleProperty(x_i, y_i + 1, z_i, &proj);
+    below = getParticleProperty(x_i, y_i - 1, z_i, &proj);
 
     Vector4D v_res = (*curr_v) - (0.5 * (1.0/h) * ((front.z - back.z) * Vector4D(0.0, 0.0, 1.0, 0.0)
                                                  + (right.x - left.x) * Vector4D(1.0, 0.0, 0.0, 0.0)
@@ -517,6 +534,10 @@ void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParame
       // density step
       diffuse2(&(this->prev_density), &(this->density), true);
       advect2(&(this->prev_density), &(this->density), this->velocity, delta_t, true);
+
+      //original
+      // diffuse();
+      // advect(delta_t);
     }
 }
 

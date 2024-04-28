@@ -57,10 +57,10 @@ struct Cloth {
   void Cloth::project(vector<Vector4D>* prev_v_field, vector<Vector4D>* v_field);
   Vector4D trilinear_interpolate(double x, double y, double z);
   int IX(int x, int y, int z);
-  Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D> values);
+  Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D>* values);
   void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_density);
   void Cloth::advect2(vector<Vector4D>* prev, vector<Vector4D>* curr, vector<Vector4D> curr_v, double dt, bool is_density);
-  Vector4D Cloth::trilinear_interpolate2(vector<Vector4D> values, double x, double y, double z);
+  Vector4D Cloth::trilinear_interpolate2(vector<Vector4D>* values, double x, double y, double z);
 
   void simulate(double frames_per_sec, double simulation_steps, ClothParameters *cp,
                 vector<Vector3D> external_accelerations,

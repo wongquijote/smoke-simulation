@@ -366,6 +366,7 @@ void ClothSimulator::drawWireframe(GLShader &shader) {
     positions.col(si) << pa.x, pa.y, pa.z, 1.0;
 
     density.col(si) << curr_density.x, curr_density.y, curr_density.z, curr_density.w;
+    // density.col(si) << p->color.x, p->color.y, p->color.z, p->color.w;
 
     si += 1;
   }
