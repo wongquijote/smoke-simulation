@@ -54,7 +54,7 @@ struct Cloth {
   void diffuse();
   void addSmokeSource(int x, int y, int z, int radius);
   void advect(double dt);
-  void project(float* div);
+  void Cloth::project(vector<Vector4D>* prev_v_field, vector<Vector4D>* v_field);
   Vector4D trilinear_interpolate(double x, double y, double z);
   int IX(int x, int y, int z);
   Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D> values);

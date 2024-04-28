@@ -37,6 +37,26 @@ Cloth::~Cloth() {
   }
 }
 
+// Helper functions //////////////////////////////
+
+// Updates the density pointer values
+void updateVector(Vector4D* value, Vector4D new_value, bool is_density) {
+  if (is_density) {
+    // Density needs to be between 0 and 1
+    value->x = max(0.0, min(1.0, new_value.x));
+    value->y = max(0.0, min(1.0, new_value.y));
+    value->z = max(0.0, min(1.0, new_value.z));
+    value->w = max(0.0, min(1.0, new_value.w));
+  } else {
+    value->x = new_value.x;
+    value->y = new_value.y;
+    value->z = new_value.z;
+    value->w = new_value.w;
+  }
+}
+
+//////////////////////////////////////////////////
+
 void Cloth::buildGrid() {
   // TODO (Part 1): Build a grid of masses and springs.
     for (int k = 0; k < num_depth_points; k++) {
@@ -59,6 +79,9 @@ void Cloth::buildGrid() {
               if (show_grid) {
                 mass->prev_color = Vector4D(0.5);
                 mass->color = Vector4D(0.5);
+
+                updateVector(mass_prev_density, Vector4D(0.5), true);
+                updateVector(mass_density, Vector4D(0.5), true);
               }
 
               this->density.push_back(*mass_density);
@@ -70,22 +93,6 @@ void Cloth::buildGrid() {
           }
       }
     }
-}
-
-// Updates the density pointer values
-void updateVector(Vector4D* value, Vector4D new_value, bool is_density) {
-  if (is_density) {
-    // Density needs to be between 0 and 1
-    value->x = max(0.0, min(1.0, new_value.x));
-    value->y = max(0.0, min(1.0, new_value.y));
-    value->z = max(0.0, min(1.0, new_value.z));
-    value->w = max(0.0, min(1.0, new_value.w));
-  } else {
-    value->x = new_value.x;
-    value->y = new_value.y;
-    value->z = new_value.z;
-    value->w = new_value.w;
-  }
 }
 
 // Calculates index of particle (x, y, z) 
@@ -221,8 +228,8 @@ void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_den
     Vector4D* new_value = &((*curr)[IX(x_i, y_i, z_i)]);
 
     Vector4D front = getParticleProperty(x_i, y_i, z_i + 1, *prev);
-    Vector4D back = getParticleProperty(x_i, y_i, z_i - 1, *prev);
-    Vector4D left = getParticleProperty(x_i - 1, y_i, z_i, *prev);
+    Vector4D back  = getParticleProperty(x_i, y_i, z_i - 1, *prev);
+    Vector4D left  = getParticleProperty(x_i - 1, y_i, z_i, *prev);
     Vector4D right = getParticleProperty(x_i + 1, y_i, z_i, *prev);
     Vector4D above = getParticleProperty(x_i, y_i + 1, z_i, *prev);
     Vector4D below = getParticleProperty(x_i, y_i - 1, z_i, *prev);
@@ -237,7 +244,7 @@ void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_den
 
     updateVector(new_value, result, is_density);
   }
-
+  
   for (int i = 0; i < (*prev).size(); i++) {
     Vector4D* prev_value = &((*prev)[i]);
     Vector4D curr_value = (*curr)[i];
@@ -352,10 +359,10 @@ Vector4D Cloth::trilinear_interpolate2(vector<Vector4D> values, double x, double
                  s0 * t1 * (u0 * p010 + u1 * p011) +
                  s1 * t0 * (u0 * p100 + u1 * p101) +
                  s1 * t1 * (u0 * p110 + u1 * p111);
-  out.w = max(0.0, min(1.0, out.w));
-  out.x = max(0.0, min(1.0, out.x));
-  out.y = max(0.0, min(1.0, out.y));
-  out.z = max(0.0, min(1.0, out.z));
+  // out.w = max(0.0, min(1.0, out.w));
+  // out.x = max(0.0, min(1.0, out.x));
+  // out.y = max(0.0, min(1.0, out.y));
+  // out.z = max(0.0, min(1.0, out.z));
 
   return out;
 }
@@ -420,15 +427,78 @@ void Cloth::advect2(vector<Vector4D>* prev_d, vector<Vector4D>* curr_d, vector<V
   }
 }
 
-void Cloth::project(float* div) {
-  float h = 1.0 / ((float) (this->num_width_points));
+void Cloth::project(vector<Vector4D>* prev_v_field, vector<Vector4D>* v_field) {
+  int N_x = this->num_width_points;
+  int N_y = this->num_height_points;
+  int N_z = this->num_depth_points; 
 
-  for (int i = 0; i < this->point_masses.size(); i++) {
-    int x_i = i % this->num_width_points;
-    int y_i = (i / this->num_width_points) % this->num_height_points;
-    int z_i = i / (this->num_width_points * this->num_height_points);
+  float h = 1.0 / ((float) (N_x));
 
+  int x_i, y_i, z_i;
+  Vector4D front, back, left, right, above, below;
+  vector<Vector4D> proj, div;
 
+  // Calculate gradient and store it in div
+  for (int i = 0; i < (*v_field).size(); i++) {
+    x_i = i % N_x;
+    y_i = (i / N_x) % N_y;
+    z_i = i / (N_x * N_y);
+    
+    front = getParticleProperty(x_i, y_i, z_i + 1, *v_field);
+    back  = getParticleProperty(x_i, y_i, z_i - 1, *v_field);
+    left  = getParticleProperty(x_i - 1, y_i, z_i, *v_field);
+    right = getParticleProperty(x_i + 1, y_i, z_i, *v_field);
+    above = getParticleProperty(x_i, y_i + 1, z_i, *v_field);
+    below = getParticleProperty(x_i, y_i - 1, z_i, *v_field);
+
+    Vector4D div_res = -0.5*h*((front.z - back.z) + (right.x - left.x) + (above.y - below.y)) * Vector4D(1.0);
+    div.push_back(div_res);
+    proj.push_back(Vector4D(0.0));
+  }
+
+  // Calculate projection
+  for (int k = 0; k < 20; k++) {
+    for (int i = 0; i < (*v_field).size(); i++) {
+      x_i = i % N_x;
+      y_i = (i / N_x) % N_y;
+      z_i = i / (N_x * N_y);
+
+      Vector4D curr_div = div[IX(x_i, y_i, z_i)];
+      Vector4D* curr_p   = &(proj[IX(x_i, y_i, z_i)]);
+      
+      front = getParticleProperty(x_i, y_i, z_i + 1, proj);
+      back  = getParticleProperty(x_i, y_i, z_i - 1, proj);
+      left  = getParticleProperty(x_i - 1, y_i, z_i, proj);
+      right = getParticleProperty(x_i + 1, y_i, z_i, proj);
+      above = getParticleProperty(x_i, y_i + 1, z_i, proj);
+      below = getParticleProperty(x_i, y_i - 1, z_i, proj);
+
+      Vector4D proj_res = (1.0/6.0) * (curr_div + front + back + left + right + above + below);
+      updateVector(curr_p, proj_res, false);
+    }
+  }
+
+  // Update Velocity Field
+  for (int i = 0; i < (*v_field).size(); i++) {
+    x_i = i % N_x;
+    y_i = (i / N_x) % N_y;
+    z_i = i / (N_x * N_y);
+
+    Vector4D* curr_v = &((*v_field)[IX(x_i, y_i, z_i)]);
+    Vector4D* prev_v = &((*prev_v_field)[IX(x_i, y_i, z_i)]);
+
+    front = getParticleProperty(x_i, y_i, z_i + 1, proj);
+    back  = getParticleProperty(x_i, y_i, z_i - 1, proj);
+    left  = getParticleProperty(x_i - 1, y_i, z_i, proj);
+    right = getParticleProperty(x_i + 1, y_i, z_i, proj);
+    above = getParticleProperty(x_i, y_i + 1, z_i, proj);
+    below = getParticleProperty(x_i, y_i - 1, z_i, proj);
+
+    Vector4D v_res = (*curr_v) - (0.5 * (1.0/h) * ((front.z - back.z) * Vector4D(0.0, 0.0, 1.0, 0.0)
+                                                 + (right.x - left.x) * Vector4D(1.0, 0.0, 0.0, 0.0)
+                                                 + (above.y - below.y)* Vector4D(0.0, 1.0, 0.0, 0.0)));
+    updateVector(curr_v, v_res, false);
+    updateVector(prev_v, *curr_v, false);
   }
 }
 
@@ -438,6 +508,13 @@ void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParame
     double delta_t = 1.0f / frames_per_sec / simulation_steps;
     
     if (!this->show_grid) {
+      // velocity step
+      // diffuse2(&(this->prev_velocity), &(this->velocity), false);
+      // project(&(this->prev_velocity), &(this->velocity));
+      // advect2(&(this->prev_velocity), &(this->velocity), this->prev_velocity, delta_t, false);
+      // project(&(this->prev_velocity), &(this->velocity));
+
+      // density step
       diffuse2(&(this->prev_density), &(this->density), true);
       advect2(&(this->prev_density), &(this->density), this->velocity, delta_t, true);
     }
