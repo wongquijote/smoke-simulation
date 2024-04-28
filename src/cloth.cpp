@@ -8,6 +8,8 @@
 #include "collision/sphere.h"
 
 using namespace std;
+
+// We Changed this: Added these
 int timestep = 0;
 
 Cloth::Cloth(double width, double height, double depth, int num_width_points,
@@ -35,16 +37,6 @@ Cloth::~Cloth() {
   }
 }
 
-// Adds a spring btw point mass at (x0, y0, z0) and mass1 if the x0 and y0 coordinates are in bounds
-// void add_spring(int x0, int y0, int z0, PointMass* mass1, Cloth* mesh, e_spring_type spring_type) {
-//     if ((x0 >= 0) && (x0 < mesh->num_width_points) && (y0 >= 0) && (y0 < mesh->num_height_points)
-//     && (z0 >= 0) && (z0 < mesh->num_depth_points)) {
-//         PointMass* mass0 = &(mesh->point_masses[x0 + y0 * mesh->num_width_points + z0 * (mesh->num_width_points * mesh->num_height_points)]);
-//         Spring* spring = new Spring(mass0, mass1, spring_type);
-//         mesh->springs.push_back(*spring);
-//     }
-// }
-
 void Cloth::buildGrid() {
   // TODO (Part 1): Build a grid of masses and springs.
     for (int k = 0; k < num_depth_points; k++) {
@@ -59,16 +51,46 @@ void Cloth::buildGrid() {
               mass->color = Vector4D(0.0);
               mass->velocity = Vector3D(10.0, 25.0, 0.0);
 
+              Vector4D* mass_density = new Vector4D();
+              Vector4D* mass_prev_density = new Vector4D();
+              Vector4D* mass_velocity = new Vector4D(10.0, 25.0, 0.0, 0.0);
+              Vector4D* mass_prev_velocity = new Vector4D(10.0, 25.0, 0.0, 0.0);
+
               if (show_grid) {
                 mass->prev_color = Vector4D(0.5);
                 mass->color = Vector4D(0.5);
               }
-              
+
+              this->density.push_back(*mass_density);
+              this->prev_density.push_back(*mass_prev_density);
+              this->velocity.push_back(*mass_velocity);
+              this->prev_velocity.push_back(*mass_prev_velocity);
               this->point_masses.push_back(*mass);
               mass->smoke_source = false;
           }
       }
     }
+}
+
+// Updates the density pointer values
+void updateVector(Vector4D* value, Vector4D new_value, bool is_density) {
+  if (is_density) {
+    // Density needs to be between 0 and 1
+    value->x = max(0.0, min(1.0, new_value.x));
+    value->y = max(0.0, min(1.0, new_value.y));
+    value->z = max(0.0, min(1.0, new_value.z));
+    value->w = max(0.0, min(1.0, new_value.w));
+  } else {
+    value->x = new_value.x;
+    value->y = new_value.y;
+    value->z = new_value.z;
+    value->w = new_value.w;
+  }
+}
+
+// Calculates index of particle (x, y, z) 
+int Cloth::IX(int x, int y, int z) {
+  return x + y * this->num_width_points + z * (this->num_width_points * this->num_height_points);
 }
 
 /*
@@ -87,11 +109,16 @@ void Cloth::addSmokeSource(int x0, int y0, int z0, int radius) {
         int z = z0 + k;
         if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
         && (y < this->num_height_points) && (z < this->num_depth_points)) {
-          int index = x + y * this->num_width_points + z * (this->num_width_points * this->num_height_points);
+          int index = IX(x, y, z);
           PointMass* curr = &(this->point_masses[index]);
           curr->prev_color = Vector4D(1.0);
           curr->color = Vector4D(1.0);
           curr->smoke_source = true;
+
+          Vector4D* curr_density = &(this->density[index]);
+          Vector4D* curr_prev_density = &(this->prev_density[index]);
+          updateVector(curr_density, Vector4D(1.0), true);
+          updateVector(curr_prev_density, Vector4D(1.0), true);
         }
       }
     }
@@ -105,8 +132,22 @@ Helper method to check if there is a particle at object space (x, y, z) and retu
 Vector4D Cloth::getMassColor(int x, int y, int z) {
   if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
   && (y < this->num_height_points) && (z < this->num_depth_points)) {
-    PointMass* curr = &(this->point_masses[x + y * this->num_width_points + z * (this->num_width_points * this->num_depth_points)]);
-    return curr->prev_color;
+    int index = x + y * this->num_width_points + z * (this->num_width_points * this->num_depth_points);
+    PointMass* curr = &(this->point_masses[index]);
+
+    Vector4D* curr_density = &(this->prev_density[index]);
+    return *curr_density;
+  }
+  return Vector4D(0.0);
+}
+
+
+// Returns the value corresponding to the coordinate (x, y, z) from values
+Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D> values) {
+  if ((x >= 0) && (y >= 0) && (z >= 0) && (x < this->num_width_points)
+  && (y < this->num_height_points) && (z < this->num_depth_points)) {
+    int index = IX(x, y, z);
+    return values[index];
   }
   return Vector4D(0.0);
 }
@@ -163,6 +204,48 @@ void Cloth::diffuse() {
       double t = timestep / 60.0;
       addSmokeSource((int)floor(25 + 10 * cos(t)), 5, (int)floor(25 + 10 * sin(t)), 1);
   }
+}
+
+void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_density) {
+  double diff = 0.8;
+  int N_x = this->num_width_points;
+  int N_y = this->num_height_points;
+  int N_z = this->num_depth_points;
+
+  for (int i = 0; i < (*prev).size(); i++) {
+    int x_i = i % N_x;
+    int y_i = (i / N_x) % N_y;
+    int z_i = i / (N_x * N_y);
+
+    Vector4D curr_value = (*prev)[IX(x_i, y_i, z_i)];
+    Vector4D* new_value = &((*curr)[IX(x_i, y_i, z_i)]);
+
+    Vector4D front = getParticleProperty(x_i, y_i, z_i + 1, *prev);
+    Vector4D back = getParticleProperty(x_i, y_i, z_i - 1, *prev);
+    Vector4D left = getParticleProperty(x_i - 1, y_i, z_i, *prev);
+    Vector4D right = getParticleProperty(x_i + 1, y_i, z_i, *prev);
+    Vector4D above = getParticleProperty(x_i, y_i + 1, z_i, *prev);
+    Vector4D below = getParticleProperty(x_i, y_i - 1, z_i, *prev);
+
+    Vector4D result = curr_value;
+
+    if (upward_smoke) {
+      result = (1.0 - diff) * curr_value + (diff / 8.0) * (front + back + left + right + above + below * 3.0);
+    } else {
+      result = (1.0 - diff) * curr_value + (diff / 6.0) * (front + back + left + right + above + below);
+    }
+
+    updateVector(new_value, result, is_density);
+  }
+
+  for (int i = 0; i < (*prev).size(); i++) {
+    Vector4D* prev_value = &((*prev)[i]);
+    Vector4D curr_value = (*curr)[i];
+
+    // Update previous value
+    updateVector(prev_value, curr_value, is_density);
+  }
+
 }
 
 /*
@@ -222,6 +305,61 @@ Vector4D Cloth::trilinear_interpolate(double x, double y, double z) {
 
   return out;
 }
+
+// trilinear interpolates values from values surrounding the coordinate (x, y, z)
+Vector4D Cloth::trilinear_interpolate2(vector<Vector4D> values, double x, double y, double z) {
+  //edge case handling
+  if (x < 0.5) {
+    x = 0.0;
+  } else if (x >= this->num_width_points - 1) {
+    x = (double) this->num_width_points - 2;
+  }
+  if (y < 0.5) {
+    y = 0.0;
+  } else if (y >= this->num_height_points - 1) {
+    y = (double) this->num_height_points - 2;
+  }
+  if (z < 0.5) {
+    z = 0.0;
+  } else if (z >= this->num_depth_points - 1) {
+    z = (double) this->num_depth_points - 2;
+  }
+
+  //set up auxilliary variables. In order, these are coordinates, ratios, and colors
+  int i0        = (int) floor(x);
+  int j0        = (int) floor(y);
+  int k0        = (int) floor(z);
+  int i1        = i0 + 1;
+  int j1        = j0 + 1;
+  int k1        = k0 + 1;
+  double s1     = x - (double) i0;
+  double s0     = 1 - s1;
+  double t1     = y - (double) j0;
+  double t0     = 1 - t1;
+  double u1     = z - (double) k0;
+  double u0     = 1 - u1;
+  Vector4D p000 = getParticleProperty(i0, j0, k0, values);
+  Vector4D p001 = getParticleProperty(i0, j0, k1, values);
+  Vector4D p010 = getParticleProperty(i0, j1, k0, values);
+  Vector4D p011 = getParticleProperty(i0, j1, k1, values);
+  Vector4D p100 = getParticleProperty(i1, j0, k0, values);
+  Vector4D p101 = getParticleProperty(i1, j0, k1, values);
+  Vector4D p110 = getParticleProperty(i1, j1, k0, values);
+  Vector4D p111 = getParticleProperty(i1, j1, k1, values);
+
+  //trilinear interpolate math
+  Vector4D out = s0 * t0 * (u0 * p000 + u1 * p001) +
+                 s0 * t1 * (u0 * p010 + u1 * p011) +
+                 s1 * t0 * (u0 * p100 + u1 * p101) +
+                 s1 * t1 * (u0 * p110 + u1 * p111);
+  out.w = max(0.0, min(1.0, out.w));
+  out.x = max(0.0, min(1.0, out.x));
+  out.y = max(0.0, min(1.0, out.y));
+  out.z = max(0.0, min(1.0, out.z));
+
+  return out;
+}
+
 void Cloth::advect(double dt) {
   for (int i = 0; i < this->point_masses.size(); i++) {
     PointMass *curr = &(this->point_masses[i]);
@@ -252,14 +390,56 @@ void Cloth::advect(double dt) {
   }
 }
 
+void Cloth::advect2(vector<Vector4D>* prev_d, vector<Vector4D>* curr_d, vector<Vector4D> curr_v, double dt, bool is_density) {
+  int N_x = this->num_width_points;
+  int N_y = this->num_height_points;
+  int N_z = this->num_depth_points;
+
+  for (int i = 0; i < (*prev_d).size(); i++) {
+    int x_i = i % N_x;
+    int y_i = (i / N_x) % N_y;
+    int z_i = i / (N_x * N_y);
+
+    Vector4D* curr_value = &((*curr_d)[IX(x_i, y_i, z_i)]); 
+    Vector4D curr_velocity = curr_v[IX(x_i, y_i, z_i)];
+    //position if we went backwards by one timestep, assuming dt is 1 second
+    double x = (double) x_i - curr_velocity.x * dt;
+    double y = (double) y_i - curr_velocity.y * dt;
+    double z = (double) z_i - curr_velocity.z * dt;
+
+    Vector4D res = trilinear_interpolate2(*prev_d, x, y, z);
+    updateVector(curr_value, res, is_density);
+  }
+
+  for (int i = 0; i < (*prev_d).size(); i++) {
+    Vector4D* prev_value = &((*prev_d)[i]);
+    Vector4D curr_value = (*curr_d)[i];
+
+    // Update previous value
+    updateVector(prev_value, curr_value, is_density);
+  }
+}
+
+void Cloth::project(float* div) {
+  float h = 1.0 / ((float) (this->num_width_points));
+
+  for (int i = 0; i < this->point_masses.size(); i++) {
+    int x_i = i % this->num_width_points;
+    int y_i = (i / this->num_width_points) % this->num_height_points;
+    int z_i = i / (this->num_width_points * this->num_height_points);
+
+
+  }
+}
+
 void Cloth::simulate(double frames_per_sec, double simulation_steps, ClothParameters* cp,
     vector<Vector3D> external_accelerations,
     vector<CollisionObject*>* collision_objects) {
     double delta_t = 1.0f / frames_per_sec / simulation_steps;
     
     if (!this->show_grid) {
-      diffuse();
-      advect(delta_t);
+      diffuse2(&(this->prev_density), &(this->density), true);
+      advect2(&(this->prev_density), &(this->density), this->velocity, delta_t, true);
     }
 }
 

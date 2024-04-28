@@ -54,7 +54,13 @@ struct Cloth {
   void diffuse();
   void addSmokeSource(int x, int y, int z, int radius);
   void advect(double dt);
+  void project(float* div);
   Vector4D trilinear_interpolate(double x, double y, double z);
+  int IX(int x, int y, int z);
+  Vector4D Cloth::getParticleProperty(int x, int y, int z, vector<Vector4D> values);
+  void Cloth::diffuse2(vector<Vector4D>* prev, vector<Vector4D>* curr, bool is_density);
+  void Cloth::advect2(vector<Vector4D>* prev, vector<Vector4D>* curr, vector<Vector4D> curr_v, double dt, bool is_density);
+  Vector4D Cloth::trilinear_interpolate2(vector<Vector4D> values, double x, double y, double z);
 
   void simulate(double frames_per_sec, double simulation_steps, ClothParameters *cp,
                 vector<Vector3D> external_accelerations,
@@ -86,6 +92,16 @@ struct Cloth {
   vector<vector<int>> pinned;
   vector<Spring> springs;
   ClothMesh *clothMesh;
+  // We Changed this
+  // Current Velocity
+  vector<Vector4D> velocity;
+  // Previous Velocity along x axis
+  vector<Vector4D> prev_velocity;
+  // Current Density 
+  vector<Vector4D> density;
+  // Previous Density
+  vector<Vector4D> prev_density;
+
 
   // Spatial hashing
   unordered_map<float, vector<PointMass *> *> map;

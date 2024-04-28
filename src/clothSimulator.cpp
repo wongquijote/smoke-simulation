@@ -327,7 +327,7 @@ void ClothSimulator::drawWireframe(GLShader &shader) {
   MatrixXf positions(4, cloth->point_masses.size());
 
   // WE CHANGE THIS
-  MatrixXf colors(4, cloth->point_masses.size());
+  MatrixXf density(4, cloth->point_masses.size());
 
   // Draw springs as lines
 
@@ -359,21 +359,20 @@ void ClothSimulator::drawWireframe(GLShader &shader) {
 
   for (int i = 0; i < cloth->point_masses.size(); i++) {
     PointMass* p = &(cloth->point_masses[i]);
+    Vector4D curr_density = cloth->density[i];
 
     Vector3D pa = p->position;
 
     positions.col(si) << pa.x, pa.y, pa.z, 1.0;
 
-    Vector4D color = p->color;
-
-    colors.col(si) << color.x, color.y, color.z, color.w;
+    density.col(si) << curr_density.x, curr_density.y, curr_density.z, curr_density.w;
 
     si += 1;
   }
 
   //shader.setUniform("u_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f), false);
   shader.uploadAttrib("in_position", positions, false);
-  shader.uploadAttrib("in_color", colors, false);
+  shader.uploadAttrib("in_color", density, false);
   // Commented out: the wireframe shader does not have this attribute
   //shader.uploadAttrib("in_normal", normals);
 

@@ -334,6 +334,7 @@ bool loadObjectsFromFile(string filename, Cloth *cloth, ClothParameters *cp, vec
       cp->density = density;
       cp->damping = damping;
       cp->ks = ks;
+
     } else if (key == SPHERE) {
       Vector3D origin;
       double radius, friction;
