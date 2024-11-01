@@ -1,23 +1,11 @@
 <html>
 	<head>
 	</head>
-	<body>
+	<body>	
+		<h1>Website and code has not been updated, but I have a link to the demos in the slides</h1>
 		<h3>Smoke Sim Webpages</h3>
+		<a href="./milestone_website/index.html">Milestone Website</a>
 		<br><br>
-		<a href="/project_proposal/index.html">Project Proposal</a>
-		<br><br>
-		<a href="/milestone_website/index.html">Milestone Website</a>
-		<br><br>
-		<a href="/Final Website/index.html">Final Website</a>
+		<a href="https://docs.google.com/presentation/d/1k4avMklxJ5a5D3f5F9J0QJNiPC44gk_FCwUZhmhuYsw/edit?usp=sharing">Final Demo Slides</a>
 	</body>
-	<script>
-		var links = document.body.getElementsByTagName("a")
-		var a = window.location.href.indexOf(".io")
-		var repo_name = window.location.href.substring(a+3)
-		for(var i = 0; i < links.length; i++){
-			var link = links[i]
-			var actual_name = link.href.substring(link.href.indexOf(".io")+4)
-			link.href = repo_name + actual_name
-		}
-	</script>
 </html>
